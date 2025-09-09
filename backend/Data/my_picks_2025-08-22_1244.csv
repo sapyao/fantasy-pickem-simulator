@@ -1,0 +1,13 @@
+player,stat,line,pick
+ Davinchi,period_1_2_goals,0.5,over
+ Dawy,kills_on_maps_1_2,33.5,over
+ Dodo,period_1_2_shots_attempted,0.5,over
+ Dodo,period_1_2_goals,0.5,over
+ Evander,period_1_2_shots_attempted,3.5,over
+ Evanilson,period_1_2_shots_attempted,3.5,over
+
+Bet: $100.0
+Multiplier: 25x
+Flexed Payout: $2500.00
+If 1 loss: 2.6x
+If 2 losses: 0.25x

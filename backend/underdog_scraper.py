@@ -94,5 +94,5 @@ class UnderdogScraper:
         print("Data saved to underdog_props.csv")
 
 # Usage example:
-#scraper = UnderdogScraper()
-#scraper.scrape()
+scraper = UnderdogScraper()
+scraper.scrape()
