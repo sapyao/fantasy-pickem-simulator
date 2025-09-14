@@ -15,7 +15,33 @@
         </div>
         <div id="picks-section">
             <h2>My Picks</h2>
+            <div id="picks-info">
+                <p>Selected picks: <span id="picks-count">0</span>/8</p>
+                <div id="payout-info">
+                    <p id="powerplay-payout">PowerPlay payout: 0x</p>
+                    <label for="bet-amount">Bet Amount ($): </label>
+                    <input type="number" id="bet-amount" min="1" value="10">
+                    <button id="toggle-mode">Switch to Flex Mode</button>
+                </div>
+                <div id="flex-mode-info" class="hidden">
+                    <p>Flex Mode:</p>
+                    <ul>
+                        <li>All correct: <span id="flex-perfect">0</span>x</li>
+                        <li>1 miss: <span id="flex-one-miss">0</span>x</li>
+                        <li>2 misses: <span id="flex-two-miss">0</span>x</li>
+                    </ul>
+                </div>
+            </div>
             <ul id="picks-list"></ul>
+            <div id="save-picks-section">
+                <button id="save-picks" disabled>Save Picks</button>
+                <div id="save-result" class="hidden"></div>
+            </div>
+        </div>
+        <div id="past-picks-section">
+            <h2>Past Picks</h2>
+            <button id="load-past-picks">Load Past Picks</button>
+            <div id="past-picks-list"></div>
         </div>
     </div>
     <script src="app.js"></script>

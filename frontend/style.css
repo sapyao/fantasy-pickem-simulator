@@ -22,6 +22,8 @@ h1 {
 h2 {
   color: #4a5568;
   margin-top: 32px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
 }
 
 #props-list {
@@ -57,6 +59,42 @@ h2 {
   background: #2b6cb0;
 }
 
+#picks-info {
+  background: #edf2f7;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+#payout-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+#bet-amount {
+  width: 80px;
+  padding: 6px;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+}
+
+#toggle-mode, #save-picks, #load-past-picks {
+  background: #3182ce;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#toggle-mode:hover, #save-picks:hover, #load-past-picks:hover {
+  background: #2b6cb0;
+}
+
 #picks-list {
   margin-top: 16px;
   list-style: none;
@@ -69,4 +107,90 @@ h2 {
   padding: 8px 12px;
   margin-bottom: 8px;
   color: #2d3748;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#picks-list li button {
+  background: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#save-picks-section {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#save-picks {
+  width: 200px;
+}
+
+#save-picks:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+#save-result {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.success {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.error {
+  background: #fed7d7;
+  color: #822727;
+}
+
+#past-picks-section {
+  margin-top: 32px;
+}
+
+#past-picks-list {
+  margin-top: 16px;
+}
+
+.past-pick-card {
+  background: #edf2f7;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.past-pick-card h3 {
+  margin-top: 0;
+  color: #2d3748;
+}
+
+.past-pick-card ul {
+  list-style: none;
+  padding: 0;
+}
+
+.past-pick-card li {
+  background: #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.flex-mode-active {
+  background: #ebf8ff;
+}
+
+.hidden {
+  display: none;
 }
