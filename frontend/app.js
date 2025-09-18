@@ -7,6 +7,7 @@ let allProps = [];
 let myPicks = [];
 let darkMode = true;
 let allPlayerProps = []; // Store the original props data
+let userBalance = 1000; // Starting balance
 
 let currentSportTab = 'all';
 let sportsData = {};
@@ -91,14 +92,16 @@ async function fetchProps(limit = null) {
         console.log('API Data:', data);
         propsList.innerHTML = '';
         
-        if (data.length === 0) {
+        if ((Array.isArray(data) && data.length === 0) || 
+            (typeof data === 'object' && Object.keys(data).length === 0)) {
             propsList.textContent = 'No props available.';
             return;
         }
         
         // Store all props globally for filtering
         allProps = data;
-        allPlayerProps = [...data]; // Create a copy for resetting
+        // Create a deep copy for resetting, ensuring we preserve the structure
+        allPlayerProps = Array.isArray(data) ? [...data] : {...data};
         
         // Display all props initially
         displayProps(allProps);
@@ -356,12 +359,21 @@ function searchPlayers() {
     // Search across all sports
     let results = [];
     
-    for (const sport in allProps) {
-        if (Array.isArray(allProps[sport])) {
-            const sportResults = allProps[sport].filter(prop => 
-                prop.player.toLowerCase().includes(searchTerm)
-            );
-            results = results.concat(sportResults);
+    // Check if allProps is an array or an object
+    if (Array.isArray(allProps)) {
+        // If it's an array, search directly
+        results = allProps.filter(prop => 
+            prop.player && prop.player.toLowerCase().includes(searchTerm)
+        );
+    } else {
+        // If it's an object with sports as keys, search within each sport
+        for (const sport in allProps) {
+            if (Array.isArray(allProps[sport])) {
+                const sportResults = allProps[sport].filter(prop => 
+                    prop.player && prop.player.toLowerCase().includes(searchTerm)
+                );
+                results = results.concat(sportResults);
+            }
         }
     }
     
@@ -432,12 +444,26 @@ function renderMyPicks() {
     
     picks.forEach((pick, index) => {
         const li = document.createElement('li');
+        
+        // Create pick toggle button
+        const toggleButton = document.createElement('button');
+        toggleButton.className = `toggle-pick ${pick.pick.toLowerCase()}`;
+        toggleButton.textContent = pick.pick;
+        toggleButton.onclick = () => togglePickType(index);
+        
         li.innerHTML = `
             ${pick.player} - ${pick.stat}: ${pick.value} 
-            <strong>${pick.pick}</strong>
-            <button class="remove-pick">Remove</button>
         `;
-        li.querySelector('.remove-pick').onclick = () => removePick(index);
+        
+        // Add the toggle button and remove button
+        li.appendChild(toggleButton);
+        
+        const removeButton = document.createElement('button');
+        removeButton.className = 'remove-pick';
+        removeButton.textContent = 'Remove';
+        removeButton.onclick = () => removePick(index);
+        
+        li.appendChild(removeButton);
         picksList.appendChild(li);
     });
 }
@@ -497,11 +523,25 @@ function toggleMode() {
     toggleMyMode();
 }
 
+// Function to update balance display
+function updateBalanceDisplay() {
+    const balanceEl = document.getElementById('user-balance');
+    if (balanceEl) {
+        balanceEl.textContent = `$${userBalance.toFixed(2)}`;
+    }
+}
+
 // Save current picks
 async function savePicksToServer() {
     const betAmount = parseFloat(document.getElementById('my-bet-amount').value);
     if (isNaN(betAmount) || betAmount <= 0) {
         alert('Please enter a valid bet amount.');
+        return;
+    }
+    
+    // Check if bet amount is less than or equal to balance
+    if (betAmount > userBalance) {
+        alert(`Not enough funds. Your balance is $${userBalance.toFixed(2)}`);
         return;
     }
     
@@ -516,6 +556,15 @@ async function savePicksToServer() {
         const multiplier = isFlexMode ? calculateFlexPayout(n, 0) : calculatePowerPlayPayout(n);
         const winnings = betAmount * multiplier;
         
+        // Update user balance
+        userBalance -= betAmount; // Deduct the bet amount
+        if (isWin) {
+            userBalance += winnings; // Add winnings if won
+        }
+        
+        // Update balance display
+        updateBalanceDisplay();
+        
         // Format the date for display
         const now = new Date();
         const formattedDate = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
@@ -529,6 +578,7 @@ async function savePicksToServer() {
             <p>Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
             <p>Multiplier: ${multiplier}x</p>
             <p>${isWin ? `Payout: $${winnings.toFixed(2)}` : 'Better luck next time!'}</p>
+            <p>New Balance: $${userBalance.toFixed(2)}</p>
         `;
         saveResult.classList.remove('hidden');
         
@@ -664,6 +714,17 @@ function initApp() {
         container.appendChild(propsContent);
         container.appendChild(picksContent);
         
+        // Add balance display
+        const balanceContainer = document.createElement('div');
+        balanceContainer.id = 'balance-container';
+        balanceContainer.innerHTML = `
+            <div class="balance-display">
+                <span>Balance: </span>
+                <span id="user-balance">$1000.00</span>
+            </div>
+        `;
+        container.insertBefore(balanceContainer, uiTabs);
+        
         // Move elements to their appropriate tabs
         
         // Get the props section and move its contents to propsContent
@@ -769,7 +830,8 @@ function initApp() {
             resetSearch.addEventListener('click', () => {
                 const playerSearch = document.getElementById('player-search');
                 if (playerSearch) playerSearch.value = '';
-                displayProps(allProps);
+                // Use allPlayerProps which is our backup of the original data structure
+                displayProps(allPlayerProps);
             });
         }
         
@@ -845,6 +907,18 @@ function clearAllPicks() {
     clearAllMyPicks();
 }
 
+// Function to toggle pick between OVER and UNDER
+function togglePickType(index) {
+    if (index >= 0 && index < picks.length) {
+        // Toggle between OVER and UNDER
+        picks[index].pick = picks[index].pick === 'OVER' ? 'UNDER' : 'OVER';
+        
+        // Re-render picks and update payout info
+        renderMyPicks();
+        updateMyPayoutInfo();
+    }
+}
+
 // Function to clear all picks
 function clearAllMyPicks() {
     if (confirm('Are you sure you want to clear all your picks?')) {
@@ -899,5 +973,58 @@ function loadPastPicksFromServer() {
         });
 }
 
+// Add styles for the toggle buttons and balance display
+function addToggleStyles() {
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+        .toggle-pick {
+            padding: 3px 8px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .toggle-pick.over {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .toggle-pick.under {
+            background-color: #F44336;
+            color: white;
+        }
+        .toggle-pick:hover {
+            opacity: 0.8;
+        }
+        
+        #balance-container {
+            text-align: right;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .balance-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            background-color: #f8f8f8;
+            padding: 8px 15px;
+            border-radius: 5px;
+            display: inline-block;
+            border: 1px solid #ddd;
+        }
+        
+        #user-balance {
+            color: #2E7D32;
+        }
+    `;
+    document.head.appendChild(styleEl);
+}
+
 // Start the application when the page loads
-window.onload = initApp;
+window.onload = function() {
+    addToggleStyles();
+    initApp();
+    updateBalanceDisplay();
+};
