@@ -2,6 +2,44 @@
 const picks = [];
 let isFlexMode = false;
 const MAX_PICKS = 8;
+// Global variables
+let allProps = [];
+let myPicks = [];
+let darkMode = true;
+let allPlayerProps = []; // Store the original props data
+
+let currentSportTab = 'all';
+let sportsData = {};
+
+let currentUiTab = 'props'; // 'props' or 'picks'
+
+// Update the switchUiTab function to hide/show picks section
+function switchUiTab(tabName) {
+    currentUiTab = tabName;
+    
+    // Get the tab elements
+    const propsTab = document.getElementById('props-tab');
+    const picksTab = document.getElementById('picks-tab');
+    
+    // Get the content elements
+    const propsContent = document.getElementById('props-content');
+    const picksContent = document.getElementById('picks-content');
+    
+    // Update active tab styling
+    if (propsTab) propsTab.classList.toggle('active', tabName === 'props');
+    if (picksTab) picksTab.classList.toggle('active', tabName === 'picks');
+    
+    // Show/hide appropriate content
+    if (propsContent) propsContent.style.display = tabName === 'props' ? 'block' : 'none';
+    if (picksContent) picksContent.style.display = tabName === 'picks' ? 'block' : 'none';
+    
+    // If switching to picks tab, update the picks display
+    if (tabName === 'picks') {
+        renderMyPicks();
+        updateMyPayoutInfo();
+    }
+}
+
 
 // Function to calculate powerplay payout based on number of picks
 function calculatePowerPlayPayout(n) {
@@ -34,13 +72,20 @@ function calculateFlexPayout(n, losses) {
 }
 
 // Fetch player props from the backend API
-async function fetchProps() {
+async function fetchProps(limit = null) {
     const propsList = document.getElementById('props-list');
     propsList.textContent = 'Loading...';
     try {
         // Change this URL if your backend runs elsewhere
-        console.log('Fetching props from API...');
-        const res = await fetch('http://localhost:5000/api/props/formatted');
+        let apiUrl = 'http://localhost:5000/api/props/formatted';
+        
+        // Add limit parameter if specified
+        if (limit !== null && limit > 0) {
+            apiUrl += `?limit=${limit}`;
+        }
+        
+        console.log(`Fetching props from API (${limit === null ? 'all props' : limit + ' props'})...`);
+        const res = await fetch(apiUrl);
         console.log('API Response:', res);
         const data = await res.json();
         console.log('API Data:', data);
@@ -51,26 +96,13 @@ async function fetchProps() {
             return;
         }
         
-        data.forEach(prop => {
-            const card = document.createElement('div');
-            card.className = 'prop-card';
-            card.innerHTML = `
-                <strong>${prop.player}</strong><br>
-                <span>${prop.stat}: ${prop.value}</span>
-                <div>
-                    <button data-pick="over">Over</button>
-                    <button data-pick="under">Under</button>
-                </div>
-            `;
-            
-            card.querySelector('button[data-pick="over"]').onclick = () => 
-                addPick({...prop, pick: 'over'});
-                
-            card.querySelector('button[data-pick="under"]').onclick = () => 
-                addPick({...prop, pick: 'under'});
-                
-            propsList.appendChild(card);
-        });
+        // Store all props globally for filtering
+        allProps = data;
+        allPlayerProps = [...data]; // Create a copy for resetting
+        
+        // Display all props initially
+        displayProps(allProps);
+    
     } catch (err) {
         propsList.textContent = 'Failed to load props. Please check if the backend server is running.';
         console.error('Error fetching props:', err);
@@ -90,7 +122,274 @@ async function fetchProps() {
     }
 }
 
-// Add a pick to the list
+// Update the displayProps function to handle the new data structure
+function displayProps(props) {
+    const propsList = document.getElementById('props-list');
+    propsList.innerHTML = '';
+    
+    // Clear existing tabs
+    const existingTabs = document.getElementById('sports-tabs');
+    if (existingTabs) {
+        existingTabs.remove();
+    }
+    
+    // Create sports tabs container
+    const sportsTabsContainer = document.createElement('div');
+    sportsTabsContainer.id = 'sports-tabs';
+    
+    // Insert sports tabs after the search container
+    const searchContainer = document.getElementById('search-container');
+    if (searchContainer) {
+        searchContainer.insertAdjacentElement('afterend', sportsTabsContainer);
+    } else {
+        // Fallback if search container doesn't exist
+        const container = document.querySelector('.container');
+        const propsContent = document.getElementById('props-content');
+        if (propsContent) {
+            propsContent.appendChild(sportsTabsContainer);
+        } else if (container) {
+            container.appendChild(sportsTabsContainer);
+        } else {
+            document.body.appendChild(sportsTabsContainer);
+        }
+    }
+    
+    // Check if props is grouped by sport or is a flat array
+    if (!Array.isArray(props)) {
+        // Store the grouped sports data globally
+        sportsData = props;
+        
+        // Create "All Sports" tab
+        createSportTab('all', 'All Sports', sportsTabsContainer, true);
+        
+        // Create tabs for each sport
+        for (const sport in props) {
+            if (Array.isArray(props[sport])) {
+                createSportTab(sport, sport, sportsTabsContainer);
+            }
+        }
+        
+        // Display initial props based on the current tab
+        displaySportProps();
+    } else {
+        // It's a flat array (from search results)
+        // Group props by sport first
+        const sportGroups = {};
+        props.forEach(prop => {
+            const sport = prop.sport || 'Unknown Sport';
+            if (!sportGroups[sport]) {
+                sportGroups[sport] = [];
+            }
+            sportGroups[sport].push(prop);
+        });
+        
+        // Store the grouped sports data globally
+        sportsData = sportGroups;
+        
+        // Create "All Sports" tab
+        createSportTab('all', 'All Sports', sportsTabsContainer, true);
+        
+        // Create tabs for each sport
+        for (const sport in sportGroups) {
+            createSportTab(sport, sport, sportsTabsContainer);
+        }
+        
+        // Display initial props based on the current tab
+        displaySportProps();
+    }
+}
+
+// Helper function to display player cards
+function displayPlayerCards(playerProps, container) {
+    // For each player, create a card with a dropdown of their props
+    for (const player in playerProps) {
+        const card = document.createElement('div');
+        card.className = 'prop-card player-card';
+        
+        // Add player name
+        const playerName = document.createElement('h3');
+        playerName.textContent = player;
+        card.appendChild(playerName);
+        
+        // Add select dropdown for props
+        const propSelect = document.createElement('select');
+        propSelect.className = 'prop-select';
+        
+        // Add a default option
+        const defaultOption = document.createElement('option');
+        defaultOption.textContent = 'Select a prop';
+        defaultOption.value = '';
+        propSelect.appendChild(defaultOption);
+        
+        // Add each prop as an option
+        playerProps[player].forEach((prop, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `${prop.stat} ${prop.value}`;
+            propSelect.appendChild(option);
+        });
+        
+        card.appendChild(propSelect);
+        
+        // Add bet buttons container (initially hidden)
+        const betButtons = document.createElement('div');
+        betButtons.className = 'bet-buttons hidden';
+        
+        const overButton = document.createElement('button');
+        overButton.textContent = 'OVER';
+        overButton.className = 'over-button';
+        
+        const underButton = document.createElement('button');
+        underButton.textContent = 'UNDER';
+        underButton.className = 'under-button';
+        
+        betButtons.appendChild(overButton);
+        betButtons.appendChild(underButton);
+        card.appendChild(betButtons);
+        
+        // Event listener for prop selection
+        propSelect.addEventListener('change', function() {
+            if (this.value !== '') {
+                betButtons.classList.remove('hidden');
+                
+                // Update the button event listeners with the new selected prop
+                const selectedProp = playerProps[player][parseInt(this.value)];
+                
+                overButton.onclick = function() {
+                    const propWithPick = {...selectedProp, pick: 'OVER'};
+                    addPick(propWithPick);
+                };
+                
+                underButton.onclick = function() {
+                    const propWithPick = {...selectedProp, pick: 'UNDER'};
+                    addPick(propWithPick);
+                };
+            } else {
+                betButtons.classList.add('hidden');
+            }
+        });
+        
+        container.appendChild(card);
+    }
+}
+
+// Function to create a sport tab
+function createSportTab(id, name, container, isActive = false) {
+    const tab = document.createElement('div');
+    tab.className = `sport-tab${isActive ? ' active' : ''}`;
+    if (id === 'all') {
+        tab.classList.add('all-sports');
+    }
+    tab.dataset.sport = id;
+    tab.textContent = name;
+    
+    tab.addEventListener('click', () => {
+        // Remove active class from all tabs
+        document.querySelectorAll('.sport-tab').forEach(t => t.classList.remove('active'));
+        // Add active class to clicked tab
+        tab.classList.add('active');
+        // Update current sport tab
+        currentSportTab = id;
+        // Display props for selected sport
+        displaySportProps();
+    });
+    
+    container.appendChild(tab);
+}
+
+// Function to display props for the selected sport
+function displaySportProps() {
+    const propsList = document.getElementById('props-list');
+    propsList.innerHTML = '';
+    
+    if (currentSportTab === 'all') {
+        // Display all sports
+        for (const sport in sportsData) {
+            if (Array.isArray(sportsData[sport])) {
+                // Group props by player within each sport
+                const playerProps = {};
+                
+                // Group the props by player name
+                sportsData[sport].forEach(prop => {
+                    if (!playerProps[prop.player]) {
+                        playerProps[prop.player] = [];
+                    }
+                    playerProps[prop.player].push(prop);
+                });
+                
+                // Display player cards for this sport
+                displayPlayerCards(playerProps, propsList);
+            }
+        }
+    } else {
+        // Display specific sport
+        if (sportsData[currentSportTab] && Array.isArray(sportsData[currentSportTab])) {
+            // Group props by player within this sport
+            const playerProps = {};
+            
+            // Group the props by player name
+            sportsData[currentSportTab].forEach(prop => {
+                if (!playerProps[prop.player]) {
+                    playerProps[prop.player] = [];
+                }
+                playerProps[prop.player].push(prop);
+            });
+            
+            // Display player cards for this sport
+            displayPlayerCards(playerProps, propsList);
+        } else {
+            propsList.innerHTML = '<p>No props available for this sport.</p>';
+        }
+    }
+}
+
+// Update the search function to work with the tabbed interface
+function searchPlayers() {
+    const searchTerm = document.getElementById('player-search').value.toLowerCase();
+    
+    if (searchTerm.trim() === '') {
+        // If search is empty, just display props based on the current tab
+        displayProps(allProps);
+        return;
+    }
+    
+    // Search across all sports
+    let results = [];
+    
+    for (const sport in allProps) {
+        if (Array.isArray(allProps[sport])) {
+            const sportResults = allProps[sport].filter(prop => 
+                prop.player.toLowerCase().includes(searchTerm)
+            );
+            results = results.concat(sportResults);
+        }
+    }
+    
+    if (results.length > 0) {
+        // Group search results by sport and display with tabs
+        const groupedResults = {};
+        results.forEach(prop => {
+            const sport = prop.sport || 'Unknown Sport';
+            if (!groupedResults[sport]) {
+                groupedResults[sport] = [];
+            }
+            groupedResults[sport].push(prop);
+        });
+        displayProps(groupedResults);
+    } else {
+        // No results
+        const propsList = document.getElementById('props-list');
+        propsList.innerHTML = '<p>No players found matching your search.</p>';
+        
+        // Clear existing tabs
+        const existingTabs = document.getElementById('sports-tabs');
+        if (existingTabs) {
+            existingTabs.remove();
+        }
+    }
+}
+
+// Modify addPick to update both tabs
 function addPick(prop) {
     // Check if we already have max picks
     if (picks.length >= MAX_PICKS) {
@@ -99,28 +398,34 @@ function addPick(prop) {
     }
     
     // Check if this pick already exists
-    if (!picks.find(p => p.player === prop.player && p.stat === prop.stat)) {
-        picks.push(prop);
-        renderPicks();
-        updatePayoutInfo();
-        updateSaveButton();
+    const existingPickIndex = picks.findIndex(p => p.player === prop.player);
+    if (existingPickIndex !== -1) {
+        // Replace the existing pick
+        picks[existingPickIndex] = prop;
     } else {
-        alert('You already have a pick for this player prop.');
+        // Add new pick
+        picks.push(prop);
     }
-}
-
-// Remove a pick from the list
-function removePick(index) {
-    picks.splice(index, 1);
-    renderPicks();
-    updatePayoutInfo();
+    
+    renderMyPicks();
+    updateMyPayoutInfo();
     updateSaveButton();
 }
 
-// Render all current picks
-function renderPicks() {
-    const picksList = document.getElementById('picks-list');
-    const picksCount = document.getElementById('picks-count');
+// Modify removePick to update picks
+function removePick(index) {
+    picks.splice(index, 1);
+    renderMyPicks();
+    updateMyPayoutInfo();
+    updateSaveButton();
+}
+
+// Add function to render picks in the My Picks tab
+function renderMyPicks() {
+    const picksList = document.getElementById('my-picks-list');
+    const picksCount = document.getElementById('my-picks-count');
+    
+    if (!picksList || !picksCount) return;
     
     picksList.innerHTML = '';
     picksCount.textContent = picks.length;
@@ -129,7 +434,7 @@ function renderPicks() {
         const li = document.createElement('li');
         li.innerHTML = `
             ${pick.player} - ${pick.stat}: ${pick.value} 
-            <strong>${pick.pick.toUpperCase()}</strong>
+            <strong>${pick.pick}</strong>
             <button class="remove-pick">Remove</button>
         `;
         li.querySelector('.remove-pick').onclick = () => removePick(index);
@@ -137,58 +442,70 @@ function renderPicks() {
     });
 }
 
-// Update the payout information based on current picks
-function updatePayoutInfo() {
+// Render all current picks (now only used by My Picks tab)
+function renderPicks() {
+    // This function is now just a fallback
+    // All picks rendering should use renderMyPicks instead
+    renderMyPicks();
+}
+
+// Add function to update payout info in My Picks tab
+function updateMyPayoutInfo() {
+    const powerPlayElem = document.getElementById('my-powerplay-payout');
+    const flexPerfectElem = document.getElementById('my-flex-perfect');
+    const flexOneMissElem = document.getElementById('my-flex-one-miss');
+    const flexTwoMissElem = document.getElementById('my-flex-two-miss');
+    
+    if (!powerPlayElem) return;
+    
     const n = picks.length;
-    const powerPlayElem = document.getElementById('powerplay-payout');
-    const flexPerfectElem = document.getElementById('flex-perfect');
-    const flexOneMissElem = document.getElementById('flex-one-miss');
-    const flexTwoMissElem = document.getElementById('flex-two-miss');
     
     // Update PowerPlay payout
-    powerPlayElem.textContent = `PowerPlay payout: ${calculatePowerPlayPayout(n)}x`;
+    const powerPlayPayout = calculatePowerPlayPayout(n);
+    powerPlayElem.textContent = `PowerPlay payout: ${powerPlayPayout}x`;
     
-    // Update Flex payouts
-    flexPerfectElem.textContent = `${calculateFlexPayout(n, 0)}x`;
-    flexOneMissElem.textContent = `${calculateFlexPayout(n, 1)}x`;
-    flexTwoMissElem.textContent = `${calculateFlexPayout(n, 2)}x`;
-    
-    // Show or hide flex two miss based on number of picks
-    flexTwoMissElem.parentElement.style.display = n >= 6 ? 'list-item' : 'none';
-}
-
-// Enable/disable the save button based on picks count
-function updateSaveButton() {
-    const saveButton = document.getElementById('save-picks');
-    saveButton.disabled = picks.length === 0;
-}
-
-// Toggle between PowerPlay and Flex mode
-function toggleMode() {
-    const toggleButton = document.getElementById('toggle-mode');
-    const flexInfo = document.getElementById('flex-mode-info');
-    const picksCount = picks.length;
-    
-    if (picksCount < 3 && !isFlexMode) {
-        alert('You need at least 3 picks to enable Flex mode.');
-        return;
+    // Update Flex payouts if those elements exist
+    if (flexPerfectElem) flexPerfectElem.textContent = `${calculateFlexPayout(n, 0)}x`;
+    if (flexOneMissElem) flexOneMissElem.textContent = `${calculateFlexPayout(n, 1)}x`;
+    if (flexTwoMissElem) {
+        flexTwoMissElem.textContent = `${calculateFlexPayout(n, 2)}x`;
+        const liElement = flexTwoMissElem.parentElement;
+        if (liElement) {
+            liElement.style.display = n >= 5 ? 'list-item' : 'none';
+        }
     }
+}
+
+// Update the payout information based on current picks
+function updatePayoutInfo() {
+    // This function is now just a fallback
+    // All payout info updates should use updateMyPayoutInfo instead
+    updateMyPayoutInfo();
+}
+
+// Update the saveButton function to work with both tabs
+function updateSaveButton() {
+    const mySaveButton = document.getElementById('my-save-picks');
     
-    isFlexMode = !isFlexMode;
-    toggleButton.textContent = isFlexMode ? 'Switch to PowerPlay Mode' : 'Switch to Flex Mode';
-    flexInfo.classList.toggle('hidden', !isFlexMode);
-    document.getElementById('payout-info').classList.toggle('flex-mode-active', isFlexMode);
+    if (mySaveButton) {
+        mySaveButton.disabled = picks.length === 0;
+    }
+}
+
+// Toggle between PowerPlay and Flex mode (legacy function)
+function toggleMode() {
+    toggleMyMode();
 }
 
 // Save current picks
 async function savePicksToServer() {
-    const betAmount = parseFloat(document.getElementById('bet-amount').value);
+    const betAmount = parseFloat(document.getElementById('my-bet-amount').value);
     if (isNaN(betAmount) || betAmount <= 0) {
         alert('Please enter a valid bet amount.');
         return;
     }
     
-    const saveResult = document.getElementById('save-result');
+    const saveResult = document.getElementById('my-save-result');
     saveResult.classList.remove('hidden', 'success', 'error');
     
     try {
@@ -302,18 +619,284 @@ function renderPastPicks(pastPicks) {
     });
 }
 
-// Initialize the app
+// Modify the initApp function to ensure proper element ordering
 function initApp() {
+    // Add UI tabs if they don't exist yet
+    if (!document.getElementById('ui-tabs')) {
+        const container = document.querySelector('.container');
+        const h1 = container.querySelector('h1');
+        
+        // Create UI tabs container
+        const uiTabs = document.createElement('div');
+        uiTabs.id = 'ui-tabs';
+        
+        // Create Props tab
+        const propsTab = document.createElement('div');
+        propsTab.id = 'props-tab';
+        propsTab.className = 'ui-tab active';
+        propsTab.textContent = 'Props';
+        propsTab.addEventListener('click', () => switchUiTab('props'));
+        
+        // Create My Picks tab
+        const picksTab = document.createElement('div');
+        picksTab.id = 'picks-tab';
+        picksTab.className = 'ui-tab';
+        picksTab.textContent = 'My Picks';
+        picksTab.addEventListener('click', () => switchUiTab('picks'));
+        
+        // Add tabs to container
+        uiTabs.appendChild(propsTab);
+        uiTabs.appendChild(picksTab);
+        
+        // Insert tabs after heading
+        h1.insertAdjacentElement('afterend', uiTabs);
+        
+        // Create content containers
+        const propsContent = document.createElement('div');
+        propsContent.id = 'props-content';
+        
+        // Create picks content
+        const picksContent = document.createElement('div');
+        picksContent.id = 'picks-content';
+        picksContent.style.display = 'none';
+        
+        // Add the content containers to main container
+        container.appendChild(propsContent);
+        container.appendChild(picksContent);
+        
+        // Move elements to their appropriate tabs
+        
+        // Get the props section and move its contents to propsContent
+        const propsSection = document.getElementById('props-section');
+        if (propsSection) {
+            // Create a heading for props content
+            const propsHeading = document.createElement('h2');
+            propsHeading.textContent = 'Player Props';
+            propsContent.appendChild(propsHeading);
+            
+            // Move search container to props content
+            const searchContainer = propsSection.querySelector('#search-container');
+            if (searchContainer) {
+                propsContent.appendChild(searchContainer);
+            }
+            
+            // Move props list to props content
+            const propsList = propsSection.querySelector('#props-list');
+            if (propsList) {
+                propsContent.appendChild(propsList);
+            }
+            
+            // Remove the original props section
+            propsSection.remove();
+        } else {
+            // Create search container if it doesn't exist
+            const newSearchContainer = document.createElement('div');
+            newSearchContainer.id = 'search-container';
+            newSearchContainer.innerHTML = `
+                <input type="text" id="player-search" placeholder="Search for a player...">
+                <button id="search-button">Search</button>
+                <button id="reset-search">Show All</button>
+            `;
+            propsContent.appendChild(newSearchContainer);
+        }
+        
+        // 2. Create props list if it doesn't exist yet
+        let propsList = document.getElementById('props-list');
+        if (!propsList) {
+            propsList = document.createElement('div');
+            propsList.id = 'props-list';
+            propsList.textContent = 'Loading props...';
+            propsContent.appendChild(propsList);
+        }
+        
+        // 3. Create picks view elements in the picks tab
+        picksContent.innerHTML = `
+            <div id="my-picks-container">
+                <h2>My Selected Picks</h2>
+                <div class="picks-wrapper">
+                    <div class="picks-list-container">
+                        <ul id="my-picks-list"></ul>
+                        <div class="picks-controls">
+                            <p><span id="my-picks-count">0</span>/${MAX_PICKS} picks selected</p>
+                            <button id="clear-all-picks" class="btn-danger">Clear All</button>
+                        </div>
+                    </div>
+                    <div class="picks-info">
+                        <div id="my-payout-info">
+                            <h3>Potential Payouts</h3>
+                            <p id="my-powerplay-payout">PowerPlay payout: 0x</p>
+                            <div id="my-flex-mode-info" class="hidden">
+                                <ul>
+                                    <li>Perfect: <span id="my-flex-perfect">0x</span></li>
+                                    <li>1 miss: <span id="my-flex-one-miss">0x</span></li>
+                                    <li>2 misses: <span id="my-flex-two-miss">0x</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div id="bet-section">
+                            <label for="my-bet-amount">Bet Amount: $</label>
+                            <input type="number" id="my-bet-amount" min="1" value="10" step="1">
+                            <button id="my-toggle-mode">Switch to Flex Mode</button>
+                            <button id="my-save-picks" disabled>Save Picks</button>
+                        </div>
+                        <div id="my-save-result" class="hidden"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Past picks section moved to My Picks tab -->
+            <div id="past-picks-section">
+                <h2>Past Picks</h2>
+                <button id="load-past-picks">Load Past Picks</button>
+                <div id="past-picks-list"></div>
+            </div>
+        `;
+        
+        // 4. Move any existing picks container to the Picks tab
+        const existingPicksInfo = document.getElementById('picks-info');
+        if (existingPicksInfo) {
+            existingPicksInfo.remove(); // Remove from current location
+        }
+        
+        // 5. Set up event listeners for Props tab
+        const searchButton = document.getElementById('search-button');
+        if (searchButton) {
+            searchButton.addEventListener('click', searchPlayers);
+        }
+        
+        const resetSearch = document.getElementById('reset-search');
+        if (resetSearch) {
+            resetSearch.addEventListener('click', () => {
+                const playerSearch = document.getElementById('player-search');
+                if (playerSearch) playerSearch.value = '';
+                displayProps(allProps);
+            });
+        }
+        
+        const playerSearch = document.getElementById('player-search');
+        if (playerSearch) {
+            playerSearch.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') {
+                    searchPlayers();
+                }
+            });
+        }
+        
+        // 6. Set up event listeners for Picks tab
+        const myToggleMode = document.getElementById('my-toggle-mode');
+        if (myToggleMode) {
+            myToggleMode.addEventListener('click', toggleMyMode);
+        }
+        
+        const mySavePicks = document.getElementById('my-save-picks');
+        if (mySavePicks) {
+            mySavePicks.addEventListener('click', savePicksToServer);
+        }
+        
+        const clearAllPicks = document.getElementById('clear-all-picks');
+        if (clearAllPicks) {
+            clearAllPicks.addEventListener('click', clearAllMyPicks);
+        }
+        
+        const loadPastPicks = document.getElementById('load-past-picks');
+        if (loadPastPicks) {
+            loadPastPicks.addEventListener('click', loadPastPicksFromServer);
+        }
+    }
+    
+    // Fetch props after UI setup
     fetchProps();
     
-    // Add event listeners
-    document.getElementById('toggle-mode').addEventListener('click', toggleMode);
-    document.getElementById('save-picks').addEventListener('click', savePicksToServer);
-    document.getElementById('load-past-picks').addEventListener('click', loadPastPicks);
-    
     // Initial UI updates
-    updatePayoutInfo();
+    updateMyPayoutInfo();
     updateSaveButton();
+}
+
+// Add function to toggle mode in My Picks tab
+function toggleMyMode() {
+    const toggleButton = document.getElementById('my-toggle-mode');
+    const flexInfo = document.getElementById('my-flex-mode-info');
+    const picksCount = picks.length;
+    
+    if (picksCount < 3 && !isFlexMode) {
+        alert('You need at least 3 picks to enable Flex mode.');
+        return;
+    }
+    
+    isFlexMode = !isFlexMode;
+    if (toggleButton) {
+        toggleButton.textContent = isFlexMode ? 'Switch to PowerPlay Mode' : 'Switch to Flex Mode';
+    }
+    
+    if (flexInfo) {
+        flexInfo.classList.toggle('hidden', !isFlexMode);
+    }
+    
+    const myPayoutInfo = document.getElementById('my-payout-info');
+    if (myPayoutInfo) {
+        myPayoutInfo.classList.toggle('flex-mode-active', isFlexMode);
+    }
+    
+    updateMyPayoutInfo();
+}
+
+// Function to clear all picks (legacy function)
+function clearAllPicks() {
+    clearAllMyPicks();
+}
+
+// Function to clear all picks
+function clearAllMyPicks() {
+    if (confirm('Are you sure you want to clear all your picks?')) {
+        picks.length = 0;
+        renderMyPicks();
+        updateMyPayoutInfo();
+        updateSaveButton();
+    }
+}
+
+// Function to load past picks
+function loadPastPicksFromServer() {
+    const pastPicksList = document.getElementById('past-picks-list');
+    if (!pastPicksList) return;
+    
+    pastPicksList.innerHTML = '<p>Loading past picks...</p>';
+    
+    fetch('http://localhost:5000/api/past-picks')
+        .then(response => response.json())
+        .then(data => {
+            pastPicksList.innerHTML = '';
+            
+            if (data.length === 0) {
+                pastPicksList.innerHTML = '<p>No past picks found.</p>';
+                return;
+            }
+            
+            data.forEach(pickSet => {
+                const card = document.createElement('div');
+                card.className = 'past-pick-card';
+                
+                const date = new Date(pickSet.date);
+                const dateStr = date.toLocaleDateString();
+                
+                card.innerHTML = `
+                    <h3>${dateStr} - $${pickSet.bet_amount}</h3>
+                    <p>Mode: ${pickSet.mode}</p>
+                    <p>Potential Payout: $${pickSet.potential_payout}</p>
+                    <ul>
+                        ${pickSet.picks.map(pick => `
+                            <li>${pick.player} - ${pick.stat} ${pick.value} ${pick.pick}</li>
+                        `).join('')}
+                    </ul>
+                `;
+                
+                pastPicksList.appendChild(card);
+            });
+        })
+        .catch(err => {
+            pastPicksList.innerHTML = '<p>Failed to load past picks. Please try again later.</p>';
+            console.error('Error loading past picks:', err);
+        });
 }
 
 // Start the application when the page loads

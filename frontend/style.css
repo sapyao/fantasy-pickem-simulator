@@ -26,6 +26,96 @@ h2 {
   padding-bottom: 8px;
 }
 
+#search-container {
+  display: flex;
+  margin: 16px 0;
+  gap: 8px;
+}
+
+#player-search {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+#search-button, #reset-search {
+  background: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#reset-search {
+  background: #a0aec0;
+}
+
+#search-button:hover {
+  background: #2b6cb0;
+}
+
+#reset-search:hover {
+  background: #718096;
+}
+
+/* Sports tabs navigation */
+#sports-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 8px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sport-tab {
+  padding: 10px 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #4a5568;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.sport-tab:hover {
+  background: #edf2f7;
+}
+
+.sport-tab.active {
+  background: #3182ce;
+  color: white;
+  border-color: #3182ce;
+}
+
+/* Hide sport headers since we're using tabs now */
+.sport-header {
+  display: none;
+}
+
+/* Make prop cards more consistent in size */
+.prop-card {
+  flex: 1 1 200px;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+/* Add a special tab for "All Sports" */
+.sport-tab.all-sports {
+  background: #4a5568;
+  color: white;
+}
+
+.sport-tab.all-sports.active {
+  background: #2d3748;
+}
+
 #props-list {
   display: flex;
   flex-wrap: wrap;
@@ -43,6 +133,78 @@ h2 {
   flex-direction: column;
   align-items: flex-start;
 }
+
+/* Add styles for the player cards */
+.player-card h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #2d3748;
+  font-size: 18px;
+}
+
+/* Style the prop select dropdown */
+.prop-select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+}
+
+/* Style the bet buttons container */
+.bet-buttons {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.bet-buttons button {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: bold;
+}
+
+.over-button {
+  background: #3182ce;
+  color: white;
+}
+
+.under-button {
+  background: #e53e3e;
+  color: white;
+}
+
+.over-button:hover {
+  background: #2b6cb0;
+}
+
+.under-button:hover {
+  background: #c53030;
+}
+
+/* Hide elements with the hidden class */
+.hidden {
+  display: none;
+}
+
+/* Make the sport headers stand out */
+.sport-header {
+  width: 100%;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: #2d3748;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+
 
 .prop-card button {
   margin-top: 12px;
@@ -74,14 +236,14 @@ h2 {
   margin-top: 8px;
 }
 
-#bet-amount {
+#bet-amount, #my-bet-amount {
   width: 80px;
   padding: 6px;
   border: 1px solid #cbd5e0;
   border-radius: 4px;
 }
 
-#toggle-mode, #save-picks, #load-past-picks {
+#toggle-mode, #my-toggle-mode, #save-picks, #my-save-picks, #load-past-picks {
   background: #3182ce;
   color: #fff;
   border: none;
@@ -91,7 +253,7 @@ h2 {
   transition: background 0.2s;
 }
 
-#toggle-mode:hover, #save-picks:hover, #load-past-picks:hover {
+#toggle-mode:hover, #my-toggle-mode:hover, #save-picks:hover, #my-save-picks:hover, #load-past-picks:hover {
   background: #2b6cb0;
 }
 
@@ -194,3 +356,112 @@ h2 {
 .hidden {
   display: none;
 }
+
+/* UI Tabs navigation */
+#ui-tabs {
+  display: flex;
+  gap: 0;
+  margin: 20px 0;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.ui-tab {
+  padding: 12px 24px;
+  background: #f8fafc;
+  color: #4a5568;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  margin-right: 4px;
+  position: relative;
+  bottom: -2px;
+}
+
+.ui-tab:hover {
+  background: #edf2f7;
+}
+
+.ui-tab.active {
+  background: #fff;
+  color: #3182ce;
+  border-bottom: 2px solid #fff;
+  z-index: 1;
+}
+
+/* Add margin to search container to separate from tabs */
+#search-container {
+  margin: 24px 0 16px;
+}
+
+/* Add spacing between search and sports tabs */
+#sports-tabs {
+  margin-top: 16px;
+  margin-bottom: 20px;
+}
+
+/* My Picks tab styling */
+#my-picks-container {
+  margin-top: 20px;
+}
+
+.picks-wrapper {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.picks-list-container {
+  flex: 2;
+  min-width: 300px;
+}
+
+.picks-info {
+  flex: 1;
+  min-width: 250px;
+}
+
+.picks-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+#my-picks-list {
+  padding-left: 0;
+  list-style-type: none;
+}
+
+#my-picks-list li {
+  background: #f8fafc;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border-left: 4px solid #3182ce;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-danger {
+  background: #e53e3e;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #c53030;
+}
+
+/* Make sure both tabs show content properly */
+#props-content, #picks-content {
+  width: 100%;
+}
+

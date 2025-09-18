@@ -2,19 +2,20 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
 import os
-import json
+import jso    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in get_props_for_frontend: {str(e)}")
+        print(error_trace)
+        return jsonify({
+            "error": f"Failed to format props: {str(e)}",
+            "trace": error_trace if app.debug else "Enable debug mode for detailed error"
+        }), 500
 from datetime import datetime
 from pick_player_props import load_props, find_player_props  # adjust import
 
 app = Flask(__name__)
 CORS(app)
-
-# Helper class for handling NaN values in JSON
-class NaNHandler(json.JSONEncoder):
-    def default(self, obj):
-        if pd.isna(obj):
-            return None
-        return super().default(obj)
 
 # Load props once (or reload each request if CSV updates often)
 try:
@@ -28,62 +29,86 @@ except Exception as e:
     print(f"Error loading props: {str(e)}")
     df = None
 
-# Load past picks from files
+# Helper function to load past picks from CSV files
 def load_past_picks():
     past_picks = []
     data_dir = os.path.join(os.path.dirname(__file__), "Data")
     
     if not os.path.exists(data_dir):
-        print(f"Data directory not found: {data_dir}")
         return past_picks
         
     for filename in os.listdir(data_dir):
         if filename.startswith("my_picks_") and filename.endswith(".csv"):
             try:
-                filepath = os.path.join(data_dir, filename)
-                picks_df = pd.read_csv(filepath)
+                file_path = os.path.join(data_dir, filename)
+                picks_df = pd.read_csv(file_path)
                 
-                # Get date from filename (e.g., my_picks_2023-08-22_1244.csv)
-                date_str = filename.split("_")[2].split(".")[0]
+                # Parse date from filename
+                date_str = filename.replace("my_picks_", "").replace(".csv", "")
+                date_parts = date_str.split("_")
+                if len(date_parts) == 2:
+                    date = date_parts[0]
+                    time = date_parts[1][:2] + ":" + date_parts[1][2:] if len(date_parts[1]) >= 4 else date_parts[1]
+                    formatted_date = f"{date} {time}"
+                else:
+                    formatted_date = date_str
                 
-                # Group by some ID if needed
-                # For now just add all as one pick set
-                bet_amount = 10.0  # Default 
-                if "bet_amount" in picks_df.columns:
-                    bet_amount = picks_df["bet_amount"].iloc[0]
+                # Read additional info from file
+                bet = 10.0  # Default
+                multiplier = 1.0  # Default
+                won = False  # Default
+                mode = "PowerPlay"  # Default
                 
-                mode = "PowerPlay"
-                if "mode" in picks_df.columns:
-                    mode = picks_df["mode"].iloc[0]
+                # Try to read extra info from file content
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        if "Bet: $" in line:
+                            try:
+                                bet = float(line.split("$")[1].strip())
+                            except:
+                                pass
+                        elif "Multiplier:" in line:
+                            try:
+                                multiplier = float(line.split("Multiplier:")[1].split("x")[0].strip())
+                            except:
+                                pass
+                        elif "PowerPlay Payout:" in line:
+                            mode = "PowerPlay"
+                            try:
+                                payout = float(line.split("$")[1].strip())
+                                won = True  # Assuming a payout means they won
+                            except:
+                                payout = bet * multiplier
+                        elif "Flexed Payout:" in line:
+                            mode = "Flex"
+                            try:
+                                payout = float(line.split("$")[1].strip())
+                                won = True  # Assuming a payout means they won
+                            except:
+                                payout = bet * multiplier
                 
-                # For example purposes, randomly determine if won
-                import random
-                won = random.choice([True, False])
-                payout = 0
-                if won:
-                    # Calculate based on mode and # picks
-                    if mode == "PowerPlay":
-                        payout = bet_amount * 10  # Simple example
-                    else:
-                        payout = bet_amount * 5
-                        
-                picks_list = []
+                # Create pick slip object
+                picks = []
                 for _, row in picks_df.iterrows():
-                    picks_list.append({
-                        "player": row.get("player", "Unknown"),
-                        "stat": row.get("stat", "pts"),
-                        "line": row.get("value", "0"),
-                        "pick": row.get("pick", "OVER")
-                    })
+                    if 'player' in row and pd.notna(row['player']):  # Skip non-pick rows
+                        picks.append({
+                            'player': row['player'],
+                            'stat': row['stat'],
+                            'line': row['line'],
+                            'pick': row['pick']
+                        })
                 
-                past_picks.append({
-                    "date": date_str,
-                    "picks": picks_list,
-                    "bet": bet_amount,
-                    "mode": mode,
-                    "won": won,
-                    "payout": payout if won else 0
-                })
+                if picks:  # Only add if there are actual picks
+                    past_picks.append({
+                        'date': formatted_date,
+                        'picks': picks,
+                        'bet': bet,
+                        'multiplier': multiplier,
+                        'payout': payout if won else 0,
+                        'mode': mode,
+                        'won': won
+                    })
             except Exception as e:
                 print(f"Error loading {filename}: {e}")
                 
@@ -96,10 +121,17 @@ def get_all_props():
             return jsonify({"error": "Props data not available. Try running the scraper first."}), 404
         
         # Handle NaN values
+        import json
+        class NaNHandler(json.JSONEncoder):
+            def default(self, obj):
+                if pd.isna(obj):
+                    return None
+                return super().default(obj)
+                
         return app.response_class(
             response=json.dumps(df.replace({pd.NA: None}).to_dict(orient="records"), cls=NaNHandler),
             status=200,
-            mimetype="application/json"
+            mimetype='application/json'
         )
     except Exception as e:
         return jsonify({"error": f"Failed to get props: {str(e)}"}), 500
@@ -118,10 +150,17 @@ def get_player_props(player_name):
             return jsonify({"error": f"No props found for player: {player_name}", "matches": []}), 404
             
         # Handle NaN values
+        import json
+        class NaNHandler(json.JSONEncoder):
+            def default(self, obj):
+                if pd.isna(obj):
+                    return None
+                return super().default(obj)
+                
         return app.response_class(
             response=json.dumps(matches.replace({pd.NA: None}).to_dict(orient="records"), cls=NaNHandler),
             status=200,
-            mimetype="application/json"
+            mimetype='application/json'
         )
     except Exception as e:
         return jsonify({"error": f"Failed to get player props: {str(e)}"}), 500
@@ -140,7 +179,7 @@ def get_props_for_frontend():
         print(f"DataFrame columns: {df.columns.tolist()}")
         
         # Check if limit parameter is provided in the request
-        limit_param = request.args.get("limit")
+        limit_param = request.args.get('limit')
         if limit_param is not None:
             try:
                 limit = int(limit_param)
@@ -218,11 +257,19 @@ def get_props_for_frontend():
             props.extend(sample_players)
             
         print(f"Returning {len(props)} props")
+        # Use json.dumps with a custom encoder to handle NaN values
+        import json
+        class NaNHandler(json.JSONEncoder):
+            def default(self, obj):
+                if pd.isna(obj):
+                    return None
+                return super().default(obj)
+                
         # Convert to JSON with NaN handling, then return
         return app.response_class(
             response=json.dumps(props, cls=NaNHandler),
             status=200,
-            mimetype="application/json"
+            mimetype='application/json'
         )
     except Exception as e:
         import traceback
@@ -243,8 +290,8 @@ def get_props_for_frontend():
     
 # Keep backward compatibility for now with a redirect
 @app.route("/props", methods=["GET"])
-def redirect_props():
-    return jsonify({"message": "Please use /api/props instead"}), 301
+def legacy_props_route():
+    return get_props_for_frontend()
 
 @app.route("/api/past-picks", methods=["GET"])
 def get_past_picks():
@@ -252,15 +299,15 @@ def get_past_picks():
         past_picks = load_past_picks()
         if not past_picks:
             return jsonify({
-                "message": "No past picks found",
+                "message": "No past picks found. Make some picks first!",
                 "picks": []
-            }), 404
+            })
         return jsonify(past_picks)
     except Exception as e:
         return jsonify({
-            "error": f"Failed to get past picks: {str(e)}",
+            "error": f"Failed to load past picks: {str(e)}",
             "picks": []
         }), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
