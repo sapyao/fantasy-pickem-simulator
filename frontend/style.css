@@ -1,28 +1,61 @@
+/* CSS Variables for Theme Support */
+:root {
+  --bg-primary: #f4f6fa;
+  --bg-secondary: #fff;
+  --text-primary: #2d3748;
+  --text-secondary: #4a5568;
+  --border-color: #e2e8f0;
+  --button-primary: #3182ce;
+  --button-primary-hover: #2b6cb0;
+  --shadow-color: rgba(0,0,0,0.08);
+  --input-bg: #fff;
+  --prop-card-bg: #f8f9fa;
+  --prop-card-hover: #edf2f7;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --bg-primary: #1a202c;
+  --bg-secondary: #2d3748;
+  --text-primary: #f7fafc;
+  --text-secondary: #e2e8f0;
+  --border-color: #4a5568;
+  --button-primary: #63b3ed;
+  --button-primary-hover: #4299e1;
+  --shadow-color: rgba(0,0,0,0.3);
+  --input-bg: #4a5568;
+  --prop-card-bg: #4a5568;
+  --prop-card-hover: #718096;
+}
+
 body {
   font-family: 'Segoe UI', Arial, sans-serif;
-  background: #f4f6fa;
+  background: var(--bg-primary);
   margin: 0;
   padding: 0;
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
   max-width: 800px;
   margin: 40px auto;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px var(--shadow-color);
   padding: 32px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 h1 {
   text-align: center;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 h2 {
-  color: #4a5568;
+  color: var(--text-secondary);
   margin-top: 32px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
 }
 
@@ -35,19 +68,26 @@ h2 {
 #player-search {
   flex: 1;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 16px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 #search-button, #reset-search {
-  background: #3182ce;
+  background: var(--button-primary);
   color: white;
   border: none;
   border-radius: 4px;
   padding: 10px 16px;
   cursor: pointer;
   transition: background 0.2s;
+}
+
+#search-button:hover, #reset-search:hover {
+  background: var(--button-primary-hover);
 }
 
 #reset-search {
@@ -124,21 +164,26 @@ h2 {
 }
 
 .prop-card {
-  background: #edf2f7;
+  background: var(--prop-card-bg);
   border-radius: 8px;
   padding: 16px;
   min-width: 200px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 4px var(--shadow-color);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  transition: background-color 0.3s ease;
+}
+
+.prop-card:hover {
+  background: var(--prop-card-hover);
 }
 
 /* Add styles for the player cards */
 .player-card h3 {
   margin-top: 0;
   margin-bottom: 12px;
-  color: #2d3748;
+  color: var(--text-primary);
   font-size: 18px;
 }
 
@@ -147,9 +192,10 @@ h2 {
   width: 100%;
   padding: 8px;
   margin-bottom: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background-color: white;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -199,16 +245,14 @@ h2 {
   width: 100%;
   margin-top: 24px;
   margin-bottom: 16px;
-  color: #2d3748;
-  border-bottom: 2px solid #e2e8f0;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
   padding-bottom: 8px;
 }
 
-
-
 .prop-card button {
   margin-top: 12px;
-  background: #3182ce;
+  background: var(--button-primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -218,11 +262,11 @@ h2 {
 }
 
 .prop-card button:hover {
-  background: #2b6cb0;
+  background: var(--button-primary-hover);
 }
 
 #picks-info {
-  background: #edf2f7;
+  background: var(--prop-card-bg);
   padding: 16px;
   border-radius: 8px;
   margin-top: 16px;

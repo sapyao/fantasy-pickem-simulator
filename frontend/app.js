@@ -417,6 +417,7 @@ function addPick(prop) {
     } else {
         // Add new pick
         picks.push(prop);
+        alert(`Successfully added a pick!`)
     }
     
     renderMyPicks();
@@ -540,8 +541,9 @@ async function savePicksToServer() {
     }
     
     // Check if bet amount is less than or equal to balance
-    if (betAmount > userBalance) {
-        alert(`Not enough funds. Your balance is $${userBalance.toFixed(2)}`);
+    const currentBalance = currentUser ? currentUser.balance : userBalance;
+    if (betAmount > currentBalance) {
+        alert(`Not enough funds. Your balance is $${currentBalance.toFixed(2)}`);
         return;
     }
     
@@ -549,62 +551,187 @@ async function savePicksToServer() {
     saveResult.classList.remove('hidden', 'success', 'error');
     
     try {
-        // This is where we would save to the backend in a real implementation
-        // For now, let's simulate it with a random win/loss
-        const n = picks.length;
-        const isWin = Math.random() > 0.5;
-        const multiplier = isFlexMode ? calculateFlexPayout(n, 0) : calculatePowerPlayPayout(n);
-        const winnings = betAmount * multiplier;
-        
-        // Update user balance
-        userBalance -= betAmount; // Deduct the bet amount
-        if (isWin) {
-            userBalance += winnings; // Add winnings if won
+        if (currentUser) {
+            // User is logged in, save to server
+            const response = await fetch('http://localhost:5000/api/picks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    picks: picks,
+                    bet_amount: betAmount,
+                    mode: isFlexMode ? "Flex" : "PowerPlay"
+                }),
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                if (data.guest) {
+                    // Handle guest user response
+                    const isWin = data.result === 'win';
+                    const payout = data.payout;
+                    
+                    // Update user balance
+                    userBalance -= betAmount; // Deduct bet amount
+                    if (isWin) {
+                        userBalance += payout; // Add winnings if won
+                    }
+                    
+                    updateBalanceDisplay();
+                    
+                    saveResult.textContent = `Picks processed successfully! ${isWin ? 'Won' : 'Lost'} - New balance: $${userBalance.toFixed(2)}`;
+                    saveResult.classList.add(isWin ? 'success' : 'error');
+                } else {
+                    // Update logged-in user balance from server response
+                    currentUser.balance = data.newBalance;
+                    userBalance = data.newBalance;
+                    updateAuthUI();
+                    updateBalanceDisplay();
+                    
+                    saveResult.textContent = `Picks saved successfully! New balance: $${data.newBalance.toFixed(2)}`;
+                    saveResult.classList.add('success');
+                }
+                
+                // Clear picks after successful save
+                picks.length = 0;
+                renderMyPicks();
+                updateMyPayoutInfo();
+                displaySportProps();
+                
+                // Store picks before clearing
+                const picksToDisplay = [...picks];
+                
+                // Add to past picks (whether guest or logged in)
+                const now = new Date();
+                const formattedDate = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+                const isWin = data.result === 'win';
+                const payout = data.payout || (isWin ? betAmount * (isFlexMode ? calculateFlexPayout(picksToDisplay.length, 0) : calculatePowerPlayPayout(picksToDisplay.length)) : 0);
+                
+                // Add to past picks list
+                const pastPicksList = document.getElementById('past-picks-list');
+                if (pastPicksList) {
+                    const pastPickCard = document.createElement('div');
+                    pastPickCard.className = 'past-pick-card';
+                    
+                    // Generate picks HTML list
+                    let picksHTML = '<ul>';
+                    picksToDisplay.forEach(pick => {
+                        picksHTML += `<li>${pick.player} - ${pick.stat}: ${pick.value} <strong>${pick.pick.toUpperCase()}</strong></li>`;
+                    });
+                    picksHTML += '</ul>';
+                    
+                    pastPickCard.innerHTML = `
+                        <h3>Pick Slip - ${formattedDate}</h3>
+                        ${picksHTML}
+                        <p>Bet: $${betAmount.toFixed(2)} | Mode: ${isFlexMode ? "Flex" : "PowerPlay"}</p>
+                        <p>Result: ${isWin ? `WIN! Payout: $${payout.toFixed(2)}` : 'LOSS'}</p>
+                    `;
+                    pastPicksList.prepend(pastPickCard);
+                }
+            } else {
+                throw new Error(data.message || 'Failed to save picks');
+            }
+        } else {
+            // This section is now handled by the server
+            // Fetch from the server even for non-logged in users
+            const response = await fetch('http://localhost:5000/api/picks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    picks: picks,
+                    bet_amount: betAmount,
+                    mode: isFlexMode ? "Flex" : "PowerPlay"
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Handle guest response
+                const isWin = data.result === 'win';
+                const payout = data.payout;
+                
+                // Update user balance
+                userBalance -= betAmount; // Deduct bet amount
+                if (isWin) {
+                    userBalance += payout; // Add winnings if won
+                }
+                
+                updateBalanceDisplay();
+                
+                // Format the date for display
+                const now = new Date();
+                const formattedDate = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+                
+                // Show the result
+                saveResult.classList.add(isWin ? 'success' : 'error');
+                saveResult.innerHTML = `
+                    <h3>Pick Slip - ${formattedDate}</h3>
+                    <p>${isWin ? 'WIN!' : 'LOSS'}</p>
+                    <p>Bet: $${betAmount.toFixed(2)}</p>
+                    <p>Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
+                    <p>Multiplier: ${payout / betAmount}x</p>
+                    <p>${isWin ? `Payout: $${payout.toFixed(2)}` : 'Better luck next time!'}</p>
+                    <p>New Balance: $${userBalance.toFixed(2)}</p>
+                `;
+                saveResult.classList.remove('hidden');
+                
+                // Clear picks after processing
+                picks.length = 0;
+                renderMyPicks();
+                updateMyPayoutInfo();
+                displaySportProps();
+                
+                // Store picks before clearing
+                const picksToDisplay = data.picks || [...picks];
+                
+                // Add to the past picks list
+                const pastPicksList = document.getElementById('past-picks-list');
+                if (pastPicksList) {
+                    const pastPickCard = document.createElement('div');
+                    pastPickCard.className = 'past-pick-card';
+                    
+                    let picksHTML = '<ul>';
+                    picksToDisplay.forEach(pick => {
+                        const playerName = pick.player;
+                        const statName = pick.stat;
+                        const statValue = pick.value || pick.line;
+                        const pickType = pick.pick;
+                        
+                        picksHTML += `<li>${playerName} - ${statName}: ${statValue} <strong>${pickType.toUpperCase()}</strong></li>`;
+                    });
+                    picksHTML += '</ul>';
+                    
+                    pastPickCard.innerHTML = `
+                        <h3>Pick Slip - ${formattedDate}</h3>
+                        ${picksHTML}
+                        <p>Bet: $${betAmount.toFixed(2)} | Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
+                        <p>Result: ${isWin ? `WIN! Payout: $${payout.toFixed(2)}` : 'LOSS'}</p>
+                    `;
+                    
+                    pastPicksList.prepend(pastPickCard);
+                }
+            } else {
+                throw new Error(data.message || 'Failed to process picks');
+            }
         }
-        
-        // Update balance display
-        updateBalanceDisplay();
-        
-        // Format the date for display
-        const now = new Date();
-        const formattedDate = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
-        
-        // Show the result
-        saveResult.classList.add(isWin ? 'success' : 'error');
-        saveResult.innerHTML = `
-            <h3>Pick Slip - ${formattedDate}</h3>
-            <p>${isWin ? 'WIN!' : 'LOSS'}</p>
-            <p>Bet: $${betAmount.toFixed(2)}</p>
-            <p>Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
-            <p>Multiplier: ${multiplier}x</p>
-            <p>${isWin ? `Payout: $${winnings.toFixed(2)}` : 'Better luck next time!'}</p>
-            <p>New Balance: $${userBalance.toFixed(2)}</p>
-        `;
-        saveResult.classList.remove('hidden');
-        
-        // Also add to the past picks list
-        const pastPicksList = document.getElementById('past-picks-list');
-        const pastPickCard = document.createElement('div');
-        pastPickCard.className = 'past-pick-card';
-        
-        let picksHTML = '<ul>';
-        picks.forEach(pick => {
-            picksHTML += `<li>${pick.player} - ${pick.stat}: ${pick.value} <strong>${pick.pick.toUpperCase()}</strong></li>`;
-        });
-        picksHTML += '</ul>';
-        
-        pastPickCard.innerHTML = `
-            <h3>Pick Slip - ${formattedDate}</h3>
-            ${picksHTML}
-            <p>Bet: $${betAmount.toFixed(2)} | Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
-            <p>Result: ${isWin ? `WIN! Payout: $${winnings.toFixed(2)}` : 'LOSS'}</p>
-        `;
-        
-        pastPicksList.prepend(pastPickCard);
         
     } catch (error) {
         saveResult.classList.add('error');
-        saveResult.textContent = 'Error saving picks. Please try again.';
+        saveResult.textContent = `Error saving picks: ${error.message}. Please try again.`;
         saveResult.classList.remove('hidden');
         console.error('Error saving picks:', error);
     }
@@ -1022,9 +1149,196 @@ function addToggleStyles() {
     document.head.appendChild(styleEl);
 }
 
+// Dark Mode Functionality
+function initDarkMode() {
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    
+    // Apply the saved theme
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateDarkModeToggle(savedTheme === 'dark');
+    
+    // Add click event listener to toggle button
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', toggleDarkMode);
+    }
+}
+
+function toggleDarkMode() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    // Apply new theme
+    document.documentElement.setAttribute('data-theme', newTheme);
+    
+    // Save preference
+    localStorage.setItem('theme', newTheme);
+    
+    // Update toggle button
+    updateDarkModeToggle(newTheme === 'dark');
+    
+    // Update the global darkMode variable if it's used elsewhere
+    darkMode = newTheme === 'dark';
+}
+
+function updateDarkModeToggle(isDark) {
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    if (darkModeToggle) {
+        darkModeToggle.textContent = isDark ? '☀️' : '🌙';
+        darkModeToggle.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    }
+}
+
 // Start the application when the page loads
 window.onload = function() {
     addToggleStyles();
+    initDarkMode();
     initApp();
     updateBalanceDisplay();
+    initAuth();
+    checkLoginStatus();
 };
+
+// Authentication Functions
+let currentUser = null;
+
+function initAuth() {
+    // Add event listeners for auth buttons
+    document.getElementById('login-btn').addEventListener('click', () => openModal('login-modal'));
+    document.getElementById('register-btn').addEventListener('click', () => openModal('register-modal'));
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    
+    // Add form submit listeners
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    document.getElementById('register-form').addEventListener('submit', handleRegister);
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    
+    try {
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentUser = { username, balance: data.balance };
+            updateAuthUI();
+            closeModal('login-modal');
+            alert('Login successful!');
+        } else {
+            alert(data.message || 'Login failed');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed');
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const username = document.getElementById('register-username').value;
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
+    
+    try {
+        const response = await fetch('http://localhost:5000/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, password }),
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeModal('register-modal');
+            alert('Registration successful! Please login.');
+        } else {
+            alert(data.message || 'Registration failed');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        alert('Registration failed');
+    }
+}
+
+async function logout() {
+    try {
+        await fetch('http://localhost:5000/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        currentUser = null;
+        userBalance = 1000; // Reset to default
+        updateAuthUI();
+        alert('Logged out successfully!');
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+}
+
+async function checkLoginStatus() {
+    try {
+        const response = await fetch('http://localhost:5000/api/auth/user', {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.user) {
+            currentUser = { username: data.user.username, balance: data.user.balance };
+            userBalance = data.user.balance;
+            updateAuthUI();
+        }
+    } catch (error) {
+        console.error('Error checking login status:', error);
+    }
+}
+
+function updateAuthUI() {
+    const loginBtn = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const balanceDisplay = document.getElementById('balance-display');
+    
+    if (currentUser) {
+        loginBtn.style.display = 'none';
+        registerBtn.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+        balanceDisplay.textContent = `Balance: $${currentUser.balance.toFixed(2)}`;
+    } else {
+        loginBtn.style.display = 'inline-block';
+        registerBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'none';
+        balanceDisplay.textContent = 'Balance: $1000.00';
+    }
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}

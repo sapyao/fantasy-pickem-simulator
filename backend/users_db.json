@@ -1,0 +1,37 @@
+{
+  "users": {
+    "testuser": {
+      "username": "testuser",
+      "password_hash": "scrypt:32768:8:1$xaF22myV9IAWWhJb$2e9cb287a52dcecae634c344db8e715026c66f66c36d74b3b266e312c21f184739431227e622a8644013c2f990879658efe31f45a1096121e6696a242e9f5877",
+      "email": "test@example.com",
+      "balance": 2000,
+      "created_at": 1758255703,
+      "picks_history": [
+        {
+          "created_at": 1632150000,
+          "picks": [
+            {
+              "player": "Test Player",
+              "stat": "pts",
+              "value": "25.5",
+              "pick": "OVER"
+            }
+          ],
+          "bet_amount": 50,
+          "mode": "PowerPlay",
+          "result": "win",
+          "payout": 100,
+          "is_completed": true
+        }
+      ]
+    },
+    "sapyao": {
+      "username": "sapyao",
+      "password_hash": "scrypt:32768:8:1$DQOdkvCnusBHiQx0$150520c876f0172264ee77a389e26218992cc25652a59c1ba4aa697736a2b4cc2058492146784734f7b26f104978b82445b7318f41a50f9189066b1859d64823",
+      "email": "",
+      "balance": 1000.0,
+      "created_at": 1758256266,
+      "picks_history": []
+    }
+  }
+}

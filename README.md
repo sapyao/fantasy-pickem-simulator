@@ -1,6 +1,16 @@
 # Fantasy Pick'em Simulator
 
-A web application that simulates the Underdog Fantasy Pick'em experience. This project allows you to browse player props, make picks, and simulate betting outcomes.
+A web application that simulates the Un### Backend
+
+- **API Endpoints**:
+  - `/api/props`: Get all available player props
+  - `/api/props/player/<n>`: Get props for a specific player
+  - `/api/props/formatted`: Get formatted props for the frontend
+  - `/api/past-picks`: Get history of past picks
+  - `/api/auth/register`: Register a new user account
+  - `/api/auth/login`: Login to an existing account
+  - `/api/auth/logout`: Logout from current session
+  - `/api/auth/user`: Get current user informationFantasy Pick'em experience. This project allows you to browse player props, make picks, and simulate betting outcomes.
 
 ## Project Structure
 
@@ -88,15 +98,19 @@ fantasy-pickem-simulator/
 - **Flex Mode**: Toggle between PowerPlay and Flex modes
 - **Save Picks**: Save your picks and simulate results
 - **Past Picks**: View history of your previous pick slips
+- **User Accounts**: Register and login to save your balance
+- **Balance Tracking**: Each account starts with $1,000 balance that persists between sessions
 
 ## Usage
 
-1. Browse the available player props
-2. Click "Over" or "Under" to add a pick to your slip
-3. Toggle between PowerPlay and Flex modes
-4. Enter your bet amount
-5. Click "Save Picks" to simulate and save your picks
-6. View past picks by clicking "Load Past Picks"
+1. Register for an account or continue as a guest
+2. Browse the available player props
+3. Click "Over" or "Under" to add a pick to your slip
+4. Toggle between PowerPlay and Flex modes
+5. Enter your bet amount
+6. Click "Save Picks" to simulate and save your picks
+7. View past picks by clicking "Load Past Picks"
+8. Your balance is automatically saved with your account
 
 ## Development
 
@@ -112,7 +126,19 @@ Returns props for a specific player.
 Returns props formatted for frontend display with player, stat, and value fields.
 
 #### GET `/api/past-picks`
-Returns history of past picks from the Data directory.
+Returns history of past picks from the Data directory or user's pick history if logged in.
+
+#### POST `/api/auth/register`
+Creates a new user account with username, password, and optional email.
+
+#### POST `/api/auth/login`
+Authenticates a user and creates a session.
+
+#### POST `/api/auth/logout`
+Ends the current user session.
+
+#### GET `/api/auth/user`
+Returns information about the currently logged-in user.
 
 ## License
 

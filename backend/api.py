@@ -1,13 +1,18 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 import pandas as pd
 import os
 import json
 from datetime import datetime
 from pick_player_props import load_props, find_player_props  # adjust import
+import user_db  # Import the user database module
+import secrets
 
 app = Flask(__name__)
-CORS(app)
+# Set a secret key for session management
+app.secret_key = secrets.token_hex(16)
+# Enable CORS with credentials support
+CORS(app, supports_credentials=True)
 
 # Helper class for handling NaN values in JSON
 class NaNHandler(json.JSONEncoder):
@@ -261,6 +266,181 @@ def get_past_picks():
             "error": f"Failed to get past picks: {str(e)}",
             "picks": []
         }), 500
+
+# Authentication endpoints
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+    email = data.get("email", "")
+    
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password are required"}), 400
+    
+    # Register user
+    result = user_db.register_user(username, password, email)
+    
+    if result["success"]:
+        # Set session
+        session["username"] = username
+        return jsonify(result), 201
+    else:
+        return jsonify(result), 400
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+    
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password are required"}), 400
+    
+    # Authenticate user
+    result = user_db.authenticate_user(username, password)
+    
+    if result["success"]:
+        # Set session
+        session["username"] = username
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 401
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    # Clear session
+    session.clear()
+    return jsonify({"success": True}), 200
+
+@app.route("/api/auth/user", methods=["GET"])
+def get_current_user():
+    username = session.get("username")
+    if not username:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+    
+    # Get user data
+    user_data = user_db.get_user(username)
+    return jsonify(user_data), 200
+
+@app.route("/api/picks", methods=["POST"])
+def save_picks():
+    username = session.get("username")
+    data = request.get_json()
+    
+    picks = data.get("picks", [])
+    bet_amount = float(data.get("bet_amount", 10))
+    mode = data.get("mode", "PowerPlay")
+    
+    if not username:
+        # For non-authenticated users, respond with simulated result
+        import random
+        is_win = random.choice([True, False])
+        
+        # Calculate payout based on number of picks and mode
+        n_picks = len(picks)
+        multiplier = 0
+        
+        if mode == "PowerPlay":
+            # PowerPlay multiplier increases with each pick
+            if n_picks == 1: multiplier = 2
+            elif n_picks == 2: multiplier = 3
+            elif n_picks == 3: multiplier = 5
+            elif n_picks == 4: multiplier = 10
+            elif n_picks == 5: multiplier = 20
+            else: multiplier = 20 + (n_picks - 5) * 10
+        else:
+            # Flex mode
+            if n_picks == 3: multiplier = 2
+            elif n_picks == 4: multiplier = 3
+            elif n_picks == 5: multiplier = 5
+            else: multiplier = 5 + (n_picks - 5)
+        
+        payout = bet_amount * multiplier if is_win else 0
+        
+        return jsonify({
+            "success": True,
+            "guest": True,
+            "result": "win" if is_win else "loss",
+            "payout": payout,
+            "picks": picks,  # Return the picks data for the frontend to display
+        }), 200
+    
+    # Get user data
+    user_data = user_db.get_user(username)
+    if not user_data["success"]:
+        return jsonify({"success": False, "error": "User not found"}), 404
+    
+    # Check if user has enough balance
+    balance = user_data["balance"]
+    if balance < bet_amount:
+        return jsonify({"success": False, "error": "Insufficient balance"}), 400
+    
+    # Process the picks (simulate a win/loss result)
+    import random
+    is_win = random.choice([True, False])
+    
+    # Calculate payout based on number of picks and mode
+    n_picks = len(picks)
+    multiplier = 0
+    
+    if mode == "PowerPlay":
+        # PowerPlay multiplier increases with each pick
+        if n_picks == 1: multiplier = 2
+        elif n_picks == 2: multiplier = 3
+        elif n_picks == 3: multiplier = 5
+        elif n_picks == 4: multiplier = 10
+        elif n_picks == 5: multiplier = 20
+        else: multiplier = 20 + (n_picks - 5) * 10
+    else:
+        # Flex mode
+        if n_picks == 3: multiplier = 2
+        elif n_picks == 4: multiplier = 3
+        elif n_picks == 5: multiplier = 5
+        else: multiplier = 5 + (n_picks - 5)
+    
+    payout = bet_amount * multiplier if is_win else 0
+    
+    # Update user balance
+    new_balance = balance - bet_amount + payout
+    user_db.update_user_balance(username, new_balance)
+    
+    # Record the pick in user history
+    pick_record = {
+        "created_at": int(datetime.now().timestamp()),
+        "picks": picks,
+        "bet_amount": bet_amount,
+        "mode": mode,
+        "result": "win" if is_win else "loss",
+        "payout": payout,
+        "is_completed": True
+    }
+    
+    user_db.add_pick_to_history(username, pick_record)
+    
+    return jsonify({
+        "success": True,
+        "result": "win" if is_win else "loss",
+        "payout": payout,
+        "new_balance": new_balance,
+        "picks": picks  # Return the picks data for the frontend to display
+    }), 200
+
+@app.route("/api/past-picks", methods=["GET"])
+def get_user_past_picks():
+    username = session.get("username")
+    
+    if not username:
+        # For non-authenticated users, load sample data
+        return jsonify(load_past_picks()), 200
+    
+    # Get user picks history
+    picks_history = user_db.get_user_picks_history(username)
+    
+    if not picks_history:
+        return jsonify({"message": "No past picks found", "picks": []}), 404
+    
+    return jsonify(picks_history), 200
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
