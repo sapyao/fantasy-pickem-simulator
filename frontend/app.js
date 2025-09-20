@@ -417,7 +417,6 @@ function addPick(prop) {
     } else {
         // Add new pick
         picks.push(prop);
-        alert(`Successfully added a pick!`)
     }
     
     renderMyPicks();
@@ -528,7 +527,8 @@ function toggleMode() {
 function updateBalanceDisplay() {
     const balanceEl = document.getElementById('user-balance');
     if (balanceEl) {
-        balanceEl.textContent = `$${userBalance.toFixed(2)}`;
+        const balance = currentUser ? currentUser.balance : userBalance;
+        balanceEl.textContent = `$${balance.toFixed(2)}`;
     }
 }
 
@@ -586,7 +586,7 @@ async function savePicksToServer() {
                     
                     updateBalanceDisplay();
                     
-                    saveResult.textContent = `Picks processed successfully! ${isWin ? 'Won' : 'Lost'} - New balance: $${userBalance.toFixed(2)}`;
+                    saveResult.textContent = `Picks processed successfully! ${isWin ? 'Won' : 'Lost'}`;
                     saveResult.classList.add(isWin ? 'success' : 'error');
                 } else {
                     // Update logged-in user balance from server response
@@ -595,7 +595,7 @@ async function savePicksToServer() {
                     updateAuthUI();
                     updateBalanceDisplay();
                     
-                    saveResult.textContent = `Picks saved successfully! New balance: $${data.newBalance.toFixed(2)}`;
+                    saveResult.textContent = `Picks saved successfully!`;
                     saveResult.classList.add('success');
                 }
                 
@@ -685,7 +685,6 @@ async function savePicksToServer() {
                     <p>Mode: ${isFlexMode ? 'Flex' : 'PowerPlay'}</p>
                     <p>Multiplier: ${payout / betAmount}x</p>
                     <p>${isWin ? `Payout: $${payout.toFixed(2)}` : 'Better luck next time!'}</p>
-                    <p>New Balance: $${userBalance.toFixed(2)}</p>
                 `;
                 saveResult.classList.remove('hidden');
                 
@@ -841,7 +840,7 @@ function initApp() {
         container.appendChild(propsContent);
         container.appendChild(picksContent);
         
-        // Add balance display
+        // Add balance display below UI tabs (not in header)
         const balanceContainer = document.createElement('div');
         balanceContainer.id = 'balance-container';
         balanceContainer.innerHTML = `
@@ -850,7 +849,8 @@ function initApp() {
                 <span id="user-balance">$1000.00</span>
             </div>
         `;
-        container.insertBefore(balanceContainer, uiTabs);
+        // Insert balance container after tabs instead of before
+        uiTabs.insertAdjacentElement('afterend', balanceContainer);
         
         // Move elements to their appropriate tabs
         
@@ -1321,18 +1321,18 @@ function updateAuthUI() {
     const loginBtn = document.getElementById('login-btn');
     const registerBtn = document.getElementById('register-btn');
     const logoutBtn = document.getElementById('logout-btn');
-    const balanceDisplay = document.getElementById('balance-display');
+    const welcomeMessage = document.getElementById('welcome-message');
     
     if (currentUser) {
         loginBtn.style.display = 'none';
         registerBtn.style.display = 'none';
         logoutBtn.style.display = 'inline-block';
-        balanceDisplay.textContent = `Balance: $${currentUser.balance.toFixed(2)}`;
+        welcomeMessage.textContent = `Welcome, ${currentUser.username}!`;
     } else {
         loginBtn.style.display = 'inline-block';
         registerBtn.style.display = 'inline-block';
         logoutBtn.style.display = 'none';
-        balanceDisplay.textContent = 'Balance: $1000.00';
+        welcomeMessage.textContent = 'Welcome, Guest!';
     }
 }
 
